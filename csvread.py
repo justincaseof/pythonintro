@@ -5,76 +5,85 @@ import collections
 import functools
 import statistics
 
-csvarray = pd.read_csv("my.csv")
-i = 0
-
-# single line comment
+''' 
+CONSTANTS
 '''
-multiline comment
+# CSV row labels
+LABEL_01_time = 'time (UTC)'
+LABEL_02_tanDelta = 'tan delta'
+LABEL_03_Vrms = 'test object RMS voltage (V)'
+LABEL_04_current = 'test object current (I)'
+LABEL_05_frequency = 'input frequency (Hz)'
+LABEL_06_capacitance = 'test object capacitance (F)'
+
+# deviation in percent to identify related entries
+MAX_deviationPercentage = 15
+
+'''
+FUNCTION DEFs
 '''
 
-# deviation in percent to identify coherent voltages
-deviationpercentage = 15
+def my_mean(rows):
+    result = 0
+    for _current_row in rows:
+        result += _current_row[LABEL_03_Vrms]
+    return result / rows.__len__()
 
-# temp variables
-previous = None
-sliceindex = 0
-slices = []
+def split_CSV_to_DataFrames(fileName: 'my.csv'):
+    '''
+    VARS
+    '''
+    # result vars
+    sliceIndex = 0
+    slices = [[]]   # yes, initialize with an empty first list
 
-# print line-wise contents of csv file
-for line in csvarray.values:
-    if i==0:
-        print("skipping first line since these are the CVS labels...")
-    else:
-        print("processing line %d" % i)
-        # get the voltage
-        voltage = float(line[2])
+    # ingest CSV
+    allDataAsDict = pd.read_csv(fileName,
+                          header=None,
+                          skiprows=2,
+                          names=[LABEL_01_time,
+                                 LABEL_02_tanDelta,
+                                 LABEL_03_Vrms,
+                                 LABEL_04_current,
+                                 LABEL_05_frequency,
+                                 LABEL_06_capacitance]
+                                )
 
-        # init list if neccesary
-        if slices.__len__() <= sliceindex:
-            slices.append([])
+    for _num, _row in allDataAsDict.iterrows():
+        # do we already have some values?
+        _slice_len = slices[sliceIndex].__len__()
+        if _slice_len > 0:
+            currentMean = my_mean(slices[sliceIndex])
+            currentValue = _row[LABEL_03_Vrms]
 
-        # calculate current mean
-        numberOfSliceValues = slices[sliceindex].__len__()
-        if numberOfSliceValues > 0:
-            '''
-            # OPTION 1: calc sum
-            _sum = 0
-            for _voltage in slices[sliceindex]:
-                _sum += _voltage
-            currentMean = _sum / numberOfSliceValues
-            '''
-
-            '''
-            # OPTION 2: calc sum
-            _sum = functools.reduce(lambda a, b: a + b, slices[sliceindex])
-            currentMean = _sum / numberOfSliceValues
-            '''
-
-            # OPTION 3: python 3 statistics
-            currentMean = statistics.mean(slices[sliceindex])
-
-            # calculate deviation of current value
-
-            diff = abs(voltage - currentMean)
+            # calculate deviation of current value to our current mean value
+            diff = abs(currentValue - currentMean)
             currentDeviationPercentage = diff / currentMean * 100
 
-            print('  --> mean={0:.2f} :: V={1} :: deviation={2:.2f}%'.format(currentMean, voltage, currentDeviationPercentage))
+            print('--> mean={0:.2f} :: V={1} :: deviation={2:.2f}%'
+                  .format(currentMean, currentValue, currentDeviationPercentage))
 
-            if currentDeviationPercentage > deviationpercentage:
-                print("!!! found beginning of new slice")
+            # are we still in our range?
+            if currentDeviationPercentage > MAX_deviationPercentage:
+                # we found a value which exceeds our maximum tolerated deviation.
+                # thus, we assume the beginning of a new time line.
+                sliceIndex += 1
                 slices.append([])
-                sliceindex += 1
+                print("[+] found beginning of new slice. adding list #{}".format(sliceIndex))
 
-        # add current value to current slice
-        slices[sliceindex].append(voltage)
-    i += 1
+        print("  [+] Adding row with Voltage {:.2f} to list #{}".format(_row[LABEL_03_Vrms], sliceIndex))
+        slices[sliceIndex].append(_row)
 
-# let's see what pandas.cut() has in store for us
+
+    return slices
+
+
+### RUN ###
+lists = split_CSV_to_DataFrames("my.csv")
 print("\nResult\n-----")
-print("We found {0} lists".format(slices.__len__()))
+print("We found {0} lists".format(lists.__len__()))
 idx = 0
-for _sublist in slices:
-    print("  --> list {0} has {1} entries and a mean of {2}".format(idx, _sublist.__len__(), statistics.mean(_sublist)))
+for _sublist in lists:
+    print("  --> list {0} has {1} entries".format(idx, _sublist.__len__()))
     idx += 1
 
