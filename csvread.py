@@ -4,6 +4,10 @@ import os.path
 import collections
 import functools
 import statistics
+import matplotlib.pyplot as plt
+import matplotlib as mpl
+import seaborn as sns
+import time
 
 ''' 
 CONSTANTS
@@ -74,16 +78,35 @@ def split_CSV_to_DataFrames(fileName: 'my.csv'):
         print("  [+] Adding row with Voltage {:.2f} to list #{}".format(_row[LABEL_03_Vrms], sliceIndex))
         slices[sliceIndex].append(_row)
 
-
     return slices
 
 
 ### RUN ###
+
+# create our list.
 lists = split_CSV_to_DataFrames("my.csv")
+
 print("\nResult\n-----")
 print("We found {0} lists".format(lists.__len__()))
 idx = 0
 for _sublist in lists:
     print("  --> list {0} has {1} entries".format(idx, _sublist.__len__()))
     idx += 1
+
+    # we need to convert to dataframe first...
+    _frame = pd.DataFrame.from_records(_sublist)
+
+    # now we have our timeseries for current iteration.
+    frequencies = _frame[LABEL_05_frequency]
+    tanDeltas = _frame[LABEL_02_tanDelta]
+
+    # provide our values to plot lib
+    plt.plot(frequencies, tanDeltas)
+    plt.xlabel(LABEL_05_frequency, fontsize=10)
+    plt.ylabel(LABEL_02_tanDelta, fontsize=10)
+    plt.xscale("log")
+
+# finally, plot all graphs into one diagram and give the file a proper name.
+plt.savefig("{}_mygraph_{}-series.png".format(int(time.time()), idx))
+
 
