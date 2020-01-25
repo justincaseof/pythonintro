@@ -27,34 +27,62 @@ MAX_deviationPercentage = 15
 FUNCTION DEFs
 '''
 
+
 def my_mean(rows):
     result = 0
     for _current_row in rows:
         result += _current_row[LABEL_03_Vrms]
     return result / rows.__len__()
 
-def split_CSV_to_DataFrames(fileName: 'my.csv'):
+def createMean(_sourcerow, _meanVrms):
+    _new_row = {
+        LABEL_01_time: _sourcerow[LABEL_01_time],
+        LABEL_02_tanDelta: _sourcerow[LABEL_02_tanDelta],
+        LABEL_03_Vrms: _meanVrms,
+        LABEL_04_current: _sourcerow[LABEL_04_current],
+        LABEL_05_frequency: _sourcerow[LABEL_05_frequency],
+        LABEL_06_capacitance: _sourcerow[LABEL_06_capacitance]
+    }
+    return _new_row
+
+def split_CSV_to_DataFrames(fileName):
     '''
     VARS
     '''
     # result vars
     sliceIndex = 0
-    slices = [[]]   # yes, initialize with an empty first list
+    slices = [[]]  # yes, initialize with an empty first list
+
+    def snapshotAndAddCurrentMean():
+        _sourcerow = _current_vals[0]
+        _meanVrms = my_mean(_current_vals)
+        _new_row = {
+            LABEL_01_time: _sourcerow[LABEL_01_time],
+            LABEL_02_tanDelta: _sourcerow[LABEL_02_tanDelta],
+            LABEL_03_Vrms: _meanVrms,
+            LABEL_04_current: _sourcerow[LABEL_04_current],
+            LABEL_05_frequency: _sourcerow[LABEL_05_frequency],
+            LABEL_06_capacitance: _sourcerow[LABEL_06_capacitance]
+        }
+        slices[sliceIndex].append(createMean(_current_vals[0], _meanVrms))
+        print("  [+] added mean of {} for frequency {}".format(_meanVrms, _curr_freq))
 
     # ingest CSV
     allDataAsDict = pd.read_csv(fileName,
-                          header=None,
-                          skiprows=2,
-                          names=[LABEL_01_time,
-                                 LABEL_02_tanDelta,
-                                 LABEL_03_Vrms,
-                                 LABEL_04_current,
-                                 LABEL_05_frequency,
-                                 LABEL_06_capacitance]
+                                header=None,
+                                skiprows=2,
+                                names=[LABEL_01_time,
+                                       LABEL_02_tanDelta,
+                                       LABEL_03_Vrms,
+                                       LABEL_04_current,
+                                       LABEL_05_frequency,
+                                       LABEL_06_capacitance]
                                 )
-
+    _current_vals = []
+    _curr_freq = None
     for _num, _row in allDataAsDict.iterrows():
-        # do we already have some values?
+        _freq = round(_row[LABEL_05_frequency])
+
         _slice_len = slices[sliceIndex].__len__()
         if _slice_len > 0:
             currentMean = my_mean(slices[sliceIndex])
@@ -64,19 +92,52 @@ def split_CSV_to_DataFrames(fileName: 'my.csv'):
             diff = abs(currentValue - currentMean)
             currentDeviationPercentage = diff / currentMean * 100
 
-            print('--> mean={0:.2f} :: V={1} :: deviation={2:.2f}%'
-                  .format(currentMean, currentValue, currentDeviationPercentage))
+            print('--> mean={0:.2f} :: f={1}, V={2} :: deviation={3:.2f}%'
+                  .format(currentMean, _freq, currentValue, currentDeviationPercentage))
 
             # are we still in our range?
             if currentDeviationPercentage > MAX_deviationPercentage:
+                # prior to starting new slice, we need to add current values. no matter what.
+                # CALC AVERAGE AND ADD TO LIST
+                if len(_current_vals) > 0:
+                    snapshotAndAddCurrentMean()
+                # reset
+                _current_vals = []
+                _curr_freq = None
+
                 # we found a value which exceeds our maximum tolerated deviation.
                 # thus, we assume the beginning of a new time line.
                 sliceIndex += 1
                 slices.append([])
+
                 print("[+] found beginning of new slice. adding list #{}".format(sliceIndex))
 
-        print("  [+] Adding row with Voltage {:.2f} to list #{}".format(_row[LABEL_03_Vrms], sliceIndex))
-        slices[sliceIndex].append(_row)
+        # check for coherent frequencies
+        if _curr_freq is None:
+            # first value
+            _curr_freq = _freq
+            _current_vals.append(_row)
+
+            print("  [+] new frequency range: {}".format(_curr_freq))
+        else:
+            # check if we're still in range. we assume zero tolerance (except deviation due to previous rounding)
+            if _freq == _curr_freq:
+                _current_vals.append(_row)
+            else:
+                # CALC AVERAGE AND ADD TO LIST
+                snapshotAndAddCurrentMean()
+
+                # reset
+                _current_vals = []
+
+                _curr_freq = _freq
+                # new row to empty list of new frequency
+                _current_vals.append(_row)
+
+                print("  [i] new frequency range: {}".format(_curr_freq))
+
+    # CALC AVERAGE AND ADD TO LIST
+    snapshotAndAddCurrentMean()
 
     return slices
 
@@ -96,8 +157,8 @@ for _sublist in lists:
     # we need to convert to dataframe first...
     _frame = pd.DataFrame.from_records(_sublist)
     currentMean = my_mean(_sublist)
-    currentMean_rounded = int(currentMean/100)*100
-    print("  --> mean is {}".format(currentMean_rounded))
+    currentMean_rounded = int(currentMean / 100) * 100
+    print("  --> mean Vrms is {}".format(currentMean_rounded))
 
     # now we have our timeseries for current iteration.
     frequencies = _frame[LABEL_05_frequency]
