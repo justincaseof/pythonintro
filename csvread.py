@@ -28,10 +28,10 @@ FUNCTION DEFs
 '''
 
 
-def my_mean(rows):
+def my_mean(rows, rowLabel):
     result = 0
     for _current_row in rows:
-        result += _current_row[LABEL_03_Vrms]
+        result += _current_row[rowLabel]
     return result / rows.__len__()
 
 def createMean(_sourcerow, _meanVrms):
@@ -53,19 +53,26 @@ def split_CSV_to_DataFrames(fileName):
     sliceIndex = 0
     slices = [[]]  # yes, initialize with an empty first list
 
+    '''
+    an inner function. yikes!
+    '''
     def snapshotAndAddCurrentMean():
+        # take timestamp
         _sourcerow = _current_vals[0]
-        _meanVrms = my_mean(_current_vals)
+        _meanTanD = my_mean(_current_vals, LABEL_02_tanDelta)
         _new_row = {
             LABEL_01_time: _sourcerow[LABEL_01_time],
-            LABEL_02_tanDelta: _sourcerow[LABEL_02_tanDelta],
-            LABEL_03_Vrms: _meanVrms,
+            LABEL_02_tanDelta: _meanTanD,
+            LABEL_03_Vrms: _sourcerow[LABEL_03_Vrms],
             LABEL_04_current: _sourcerow[LABEL_04_current],
             LABEL_05_frequency: _sourcerow[LABEL_05_frequency],
             LABEL_06_capacitance: _sourcerow[LABEL_06_capacitance]
         }
-        slices[sliceIndex].append(createMean(_current_vals[0], _meanVrms))
-        print("  [+] added mean of {} for frequency {}".format(_meanVrms, _curr_freq))
+
+        #slices[sliceIndex].append(pd.DataFrame.from_records([_new_row]))
+        slices[sliceIndex].append(_new_row)
+
+        print("  [+] added mean of tanD={} for frequency {}".format(_meanTanD, _curr_freq))
 
     # ingest CSV
     allDataAsDict = pd.read_csv(fileName,
@@ -85,7 +92,7 @@ def split_CSV_to_DataFrames(fileName):
 
         _slice_len = slices[sliceIndex].__len__()
         if _slice_len > 0:
-            currentMean = my_mean(slices[sliceIndex])
+            currentMean = my_mean(slices[sliceIndex], LABEL_03_Vrms)
             currentValue = _row[LABEL_03_Vrms]
 
             # calculate deviation of current value to our current mean value
@@ -156,9 +163,10 @@ for _sublist in lists:
 
     # we need to convert to dataframe first...
     _frame = pd.DataFrame.from_records(_sublist)
-    currentMean = my_mean(_sublist)
+    currentMean = my_mean(_sublist, LABEL_03_Vrms)
     currentMean_rounded = int(currentMean / 100) * 100
-    print("  --> mean Vrms is {}".format(currentMean_rounded))
+    print("  --> mean Vrms is {}".format(currentMean))
+    print("  --> rounded Vrms is {}".format(currentMean_rounded))
 
     # now we have our timeseries for current iteration.
     frequencies = _frame[LABEL_05_frequency]
