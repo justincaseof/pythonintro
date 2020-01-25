@@ -57,7 +57,7 @@ def split_CSV_to_DataFrames(fileName):
     an inner function. yikes!
     '''
     def snapshotAndAddCurrentMean():
-        # take timestamp
+        # take timestamp and other values (apart from tand) from first measurement of current frequqncy range
         _sourcerow = _current_vals[0]
         _meanTanD = my_mean(_current_vals, LABEL_02_tanDelta)
         _new_row = {
