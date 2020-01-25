@@ -95,6 +95,9 @@ for _sublist in lists:
 
     # we need to convert to dataframe first...
     _frame = pd.DataFrame.from_records(_sublist)
+    currentMean = my_mean(_sublist)
+    currentMean_rounded = int(currentMean/100)*100
+    print("  --> mean is {}".format(currentMean_rounded))
 
     # now we have our timeseries for current iteration.
     frequencies = _frame[LABEL_05_frequency]
